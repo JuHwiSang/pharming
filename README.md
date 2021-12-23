@@ -6,4 +6,4 @@
 - --http : 서버와 http 연결
 
 ### Result
-- ./pharming/[DOMAIN]..[PORT]/[START_TIME]/[IP]/[TIME]\_[request|response]
+- ./pharming/[DOMAIN]..[PORT]/[START_TIME]/[IP]/[TIME]\_[request | response]
