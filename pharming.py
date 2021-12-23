@@ -1,10 +1,3 @@
-"""
-추가:
-1. 스레딩 추가
-2. http 추가
--> application 쿠키 뺏을 수 있는지 확인
-"""
-
 from socket import *
 import ssl
 import threading
