@@ -7,3 +7,4 @@
 
 ### Result
 - ./pharming/[DOMAIN]..[PORT]/[START_TIME]/[IP]/[TIME]\_[request | response]
+- ex) pharming/www.naver.com..80/2021-12-23 22.29.05/10.0.0.0/22.29.10.7561796_request
