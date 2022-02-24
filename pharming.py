@@ -13,7 +13,7 @@ MAX_DATA_LEN = 1024
 HTTP = 80
 HTTPS = 443
 
-SSL_CONTEXT: ssl.SSLContext = None
+SSL_CONTEXT: ssl.SSLContext = ssl.create_default_context()
 
 
 class SendRecv():
@@ -167,9 +167,6 @@ def compress(string: bytes) -> bytes:
 
 
 def main():
-    global SSL_CONTEXT
-    SSL_CONTEXT = ssl.create_default_context()
-
     pharming = Pharming()
     pharming.run()
 
