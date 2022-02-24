@@ -1,7 +1,3 @@
-"""
-참고: https://docs.python.org/ko/3/library/ssl.html
-"""
-
 from typing import Dict
 
 import socket
