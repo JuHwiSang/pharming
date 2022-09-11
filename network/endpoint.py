@@ -86,5 +86,6 @@ class Server(Endpoint):
 
     def send(self, pkt: Packet) -> None:
         data = pkt.to_bytes()
+        # print("try send")
         self.sock.sendall(data)
         save(data, "ServerSend")

@@ -33,6 +33,9 @@ class Packet:
         def __contains__(self, element) -> bool:
             return element in self.header
 
+        def items(self):
+            return self.header.items()
+
         def to_bytes(self) -> bytes:
             return decode_header(self.header)
 
@@ -88,6 +91,10 @@ class Request(Packet):
     def body_replace(self, befo: bytes, aft: bytes) -> None:
         self.body = self.body.replace(befo, aft)
         # self.header.set(b"Content-Length", str(len(self.body.to_bytes())).encode())
+
+    def header_replace(self, befo: bytes, aft: bytes) -> None:
+        for key, value in self.header.items():
+            self.header.set(key, value.replace(befo, aft))
 
     def to_bytes(self) -> bytes:
         body_bytes = self.body.to_bytes()
