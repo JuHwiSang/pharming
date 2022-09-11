@@ -31,7 +31,7 @@ class Proxy:
         with client:
             req = client.recv()
             host = req.header.get(b"Host").decode()
-            # req.header_replace(b"http://", b"https://")
+            req.header_replace(b"http://", b"https://")
 
             server = self.connect_to(host)
             with server:

@@ -159,4 +159,4 @@ class Response(Packet):
 
 
 def is_chunk(version: bytes, header: Packet.Header) -> bool:
-    return ((not b"Content-Length" in header) and (not version == b"HTTP/1.0")) or b"Transfer-Encoding" in header
+    return (((not b"Content-Length" in header) and (version != b"HTTP/1.0")) or b"Transfer-Encoding" in header)

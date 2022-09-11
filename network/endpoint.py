@@ -33,6 +33,7 @@ class Endpoint:
 
 class Client(Endpoint):
     def recv(self) -> Request:
+        # print("try recv")
         stream = ByteStream(lambda:self.sock.recv(1024))
         load = stream.loaduntil(b"\r\n\r\n")
         startline_bytes, _, header_bytes = load.partition(b"\r\n")
@@ -47,6 +48,7 @@ class Client(Endpoint):
         return request
 
     def send(self, pkt: Packet) -> None:
+        # print("try send")
         data = pkt.to_bytes()
         self.sock.sendall(data)
         save(data, "ClientSend")
@@ -54,15 +56,17 @@ class Client(Endpoint):
 
 class Server(Endpoint):
     def recv(self) -> Response:
+        # print("try recv")
         stream = ByteStream(lambda:self.sock.recv(1024))
         load = stream.loaduntil(b"\r\n\r\n")
-        # print("check2")
         startline_bytes, _, header_bytes = load.partition(b"\r\n")
+        # print("check2")
         startline = Response.StartLine(startline_bytes)
         header = Response.Header(header_bytes)
         encoding = header.get(b"Content-Encoding", b"identity")
-        if is_chunk(startline.version, header):
+        if startline.status[0] != ord('3') and is_chunk(startline.version, header):
             # print("chunk")
+            # breakpoint()
             chunk_lengths: list[int] = []     # 청크의 길이를 담는 리스트. 인코딩 시 필요
             body_bytes = b""
             while 1:
@@ -76,6 +80,7 @@ class Server(Endpoint):
             body = Response.ChunkedBody(body_bytes, encoding, chunk_lengths=chunk_lengths)
         else:
             # print("not chunk")
+            # breakpoint()
             content_length = int(header.get(b"Content-Length", b"0"))
             body_bytes = stream.loadlength(content_length)
             body = Response.Body(body_bytes, encoding)
@@ -85,7 +90,7 @@ class Server(Endpoint):
         return response
 
     def send(self, pkt: Packet) -> None:
-        data = pkt.to_bytes()
         # print("try send")
+        data = pkt.to_bytes()
         self.sock.sendall(data)
         save(data, "ServerSend")
