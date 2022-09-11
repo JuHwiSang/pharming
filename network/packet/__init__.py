@@ -31,7 +31,10 @@ class Packet:
             return self.header.get(key, default)
 
         def __contains__(self, element) -> bool:
-            return element in self.header
+            if isinstance(element, bytes):
+                return any(key.lower() == element.lower() for key in self.header.keys())
+            else:
+                raise ValueError("element must be type 'bytes'")
 
         def items(self):
             return self.header.items()
@@ -70,6 +73,10 @@ class Packet:
 
     def body_replace(self, befo: bytes, aft: bytes) -> None:
         raise NotImplementedError("Can't use Packet.Startline, use overrided method")
+    
+    def header_replace(self, befo: bytes, aft: bytes) -> None:
+        for key, value in self.header.items():
+            self.header.set(key, value.replace(befo, aft))
 
     def to_bytes(self) -> bytes:
         return self.startline.to_bytes() + b"\r\n" + self.header.to_bytes() + b"\r\n\r\n" + self.body.to_bytes()
@@ -91,10 +98,6 @@ class Request(Packet):
     def body_replace(self, befo: bytes, aft: bytes) -> None:
         self.body = self.body.replace(befo, aft)
         # self.header.set(b"Content-Length", str(len(self.body.to_bytes())).encode())
-
-    def header_replace(self, befo: bytes, aft: bytes) -> None:
-        for key, value in self.header.items():
-            self.header.set(key, value.replace(befo, aft))
 
     def to_bytes(self) -> bytes:
         body_bytes = self.body.to_bytes()
@@ -159,4 +162,4 @@ class Response(Packet):
 
 
 def is_chunk(version: bytes, header: Packet.Header) -> bool:
-    return (((not b"Content-Length" in header) and (version != b"HTTP/1.0")) or b"Transfer-Encoding" in header)
+    return b"Content-Length" not in header and (((version != b"HTTP/1.0")) or b"Transfer-Encoding" in header)
