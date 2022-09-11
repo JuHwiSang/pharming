@@ -1,4 +1,5 @@
 from utils.bytestream import ByteStream
+from utils.debug_save import debug_save
 from .packet import is_chunk
 from .packet import Packet, Request, Response
 from .packet.save import Save
@@ -64,30 +65,34 @@ class Server(Endpoint):
         startline = Response.StartLine(startline_bytes)
         header = Response.Header(header_bytes)
         encoding = header.get(b"Content-Encoding", b"identity")
-        if startline.status[0] != ord('3') and is_chunk(startline.version, header):
-            # print("chunk")
-            # breakpoint()
-            chunk_lengths: list[int] = []     # 청크의 길이를 담는 리스트. 인코딩 시 필요
-            body_bytes = b""
-            while 1:
-                length = int(stream.loaduntil(b"\r\n"), 16)
-                chunk = stream.loadlength(length)
-                chunk_lengths.append(length)
-                body_bytes += chunk
-                if length == 0:
-                    break
-                stream.next(2)
-            body = Response.ChunkedBody(body_bytes, encoding, chunk_lengths=chunk_lengths)
-        else:
-            # print("not chunk")
-            # breakpoint()
-            content_length = int(header.get(b"Content-Length", b"0"))
-            body_bytes = stream.loadlength(content_length)
-            body = Response.Body(body_bytes, encoding)
+        try:
+            if startline.status[0] != ord('3') and is_chunk(startline.version, header):
+                # print("chunk")
+                # breakpoint()
+                chunk_lengths: list[int] = []     # 청크의 길이를 담는 리스트. 인코딩 시 필요
+                body_bytes = b""
+                while 1:
+                    length = int(stream.loaduntil(b"\r\n"), 16)
+                    chunk = stream.loadlength(length)
+                    chunk_lengths.append(length)
+                    body_bytes += chunk
+                    if length == 0:
+                        break
+                    stream.next(2)
+                body = Response.ChunkedBody(body_bytes, encoding, chunk_lengths=chunk_lengths)
+            else:
+                # print("not chunk")
+                # breakpoint()
+                content_length = int(header.get(b"Content-Length", b"0"))
+                body_bytes = stream.loadlength(content_length)
+                body = Response.Body(body_bytes, encoding)
 
-        response = Response(startline, header, body)
-        save(stream.buffer, "ServerRecv")
-        return response
+            response = Response(startline, header, body)
+            save(stream.buffer, "ServerRecv")
+            return response
+        except BaseException as e:
+            debug_save(stream.buffer, "exception")
+            raise
 
     def send(self, pkt: Packet) -> None:
         # print("try send")
