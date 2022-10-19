@@ -1,4 +1,5 @@
 from network.endpoint import Client, Server
+from network.packet import Packet
 from utils.debug_save import debug_save
 from utils.linkreplacer import linkreplacer
 
@@ -43,8 +44,8 @@ class Proxy:
             content_type = res.header.get(b"Content-Type").split(b";")[0].strip()
             # if content_type in [b'text/html', b'application/javascript']: #이거 조건문 하면 안되나. 안될거같은걸? 그치?
             res.body_replace(b"https://", b"http://")
-            if content_type in [b'text/html'] and is_dochtml(res.body):
-                res.body = linkreplacer + res.body
+            if content_type in [b'text/html'] and is_dochtml(res.body.plain_text.lstrip()):
+                res.body.plain_text = linkreplacer + res.body.plain_text
             debug_save(res.body.plain_text, "after_replace")
             client.send(res)
 
@@ -61,8 +62,10 @@ class Proxy:
             print("[SHUTDOWN]")
 
 
+# todo: bytes로 해뒀는데, 이거 body로 해야하고 packet 패키지 안으로 넣어야함
 def is_dochtml(body: bytes) -> bool:
-    return body.startswith(b"<!DOCTYPE")
+    # debug_save(body, "whatisthis")
+    return body.lower().startswith(b"<!doctype")
 
 
 

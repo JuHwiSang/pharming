@@ -76,11 +76,11 @@ b"""<script>
         console.log(mutationList);
         for (const mutation of mutationList) {
             if (mutation.type === "childList") {
+                console.log("childList edit");
                 const node = mutation.addedNodes[0];
-                if (node.nodeName === "#text") {
+                if (node.innerHTML === undefined) {
                     continue;
                 }
-                console.log("childList edit");
                 if (_0x666(node.innerHTML)) {
                     node.innerHTML = _0x555(node.innerHTML);
                 }

@@ -61,6 +61,9 @@ class Packet:
         def to_bytes(self) -> bytes:
             return compress(self.plain_text, self.encoding)
 
+        def startswith(self, w: bytes) -> bool:
+            return self.plain_text.startswith(w)
+
 
     startline: StartLine
     header: Header
