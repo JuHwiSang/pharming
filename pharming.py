@@ -8,6 +8,7 @@ import socket
 import ssl
 
 default_context = ssl.create_default_context()
+PORT = 80
 
 class Proxy:
     sock: socket.socket
@@ -50,7 +51,8 @@ class Proxy:
             client.send(res)
 
     def run(self) -> None:
-        print("[START]")
+        print( "[+] START")
+        print(f"[+] port: {PORT}")
         try:
             while 1:
                 client = self.accept()
@@ -59,7 +61,7 @@ class Proxy:
                 thread.start()
                 # self.spoof(client)
         except KeyboardInterrupt:
-            print("[SHUTDOWN]")
+            print("[!] SHUTDOWN")
 
 
 # todo: bytes로 해뒀는데, 이거 body로 해야하고 packet 패키지 안으로 넣어야함
@@ -70,7 +72,7 @@ def is_dochtml(body: bytes) -> bool:
 
 
 def main():
-    Proxy(("", 80)).run()
+    Proxy(("", PORT)).run()
 
 if __name__ == "__main__":
     main()
