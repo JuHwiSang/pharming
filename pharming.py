@@ -35,6 +35,7 @@ class Proxy:
             req = client.recv()
             host = req.header.get(b"Host").decode().split(":")[0]
             req.header_replace(b"http://", b"https://")
+            req.body_replace(b"http://", b"https://")
 
             server = self.connect_to(host)
             with server:
@@ -42,11 +43,11 @@ class Proxy:
                 res = server.recv()
                 debug_save(res.body.plain_text, "ServerRecv")
             res.header_replace(b"https://", b"http://")
-            content_type = res.header.get(b"Content-Type").split(b";")[0].strip()
+            # content_type = res.header.get(b"Content-Type").split(b";")[0].strip()
             # if content_type in [b'text/html', b'application/javascript']: #이거 조건문 하면 안되나. 안될거같은걸? 그치?
             res.body_replace(b"https://", b"http://")
-            if content_type in [b'text/html'] and is_dochtml(res.body.plain_text.lstrip()):
-                res.body.plain_text = linkreplacer + res.body.plain_text
+            # if content_type in [b'text/html'] and is_dochtml(res.body.plain_text.lstrip()):
+            #     res.body.plain_text = linkreplacer + res.body.plain_text
             debug_save(res.body.plain_text, "after_replace")
             client.send(res)
 
